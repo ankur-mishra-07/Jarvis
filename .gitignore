@@ -1,0 +1,36 @@
+# Secrets
+.env
+local.properties
+**/Config.xcconfig
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Gradle / KMP
+.gradle/
+build/
+.kotlin/
+*.iml
+.idea/
+local.properties
+
+# Xcode / iOS
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+Pods/
+*.hmap
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

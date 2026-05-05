@@ -1,0 +1,5 @@
+# Copy to local.properties and fill in. local.properties is gitignored.
+sdk.dir=/path/to/Android/sdk
+BASE_URL=http://10.0.2.2:8000
+API_KEY=change-me
+PORCUPINE_ACCESS_KEY=

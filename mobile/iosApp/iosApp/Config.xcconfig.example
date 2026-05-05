@@ -1,0 +1,4 @@
+// Copy to Config.xcconfig and reference from Info.plist via $(BASE_URL) etc.
+BASE_URL = http:/$()/192.168.1.10:8000
+API_KEY = change-me
+PORCUPINE_ACCESS_KEY =
