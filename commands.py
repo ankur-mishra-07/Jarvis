@@ -14,6 +14,7 @@ import json
 import math
 import random
 
+import threading
 import config
 import claude_brain
 import brain
@@ -22,6 +23,9 @@ OWNER_NAME = config.get("owner_name")
 
 # Conversation history for Claude
 _claude_history = []
+
+# Thread lock for concurrent access (local voice + API server)
+_command_lock = threading.Lock()
 
 # ─── Conversation Context ─────────────────────────────────────────────────────
 
@@ -1782,11 +1786,15 @@ COMMAND_TABLE = [
 ]
 
 
-def process_command(command):
+def process_command(command, source="local"):
     """
     Route a voice command to the appropriate handler.
     Maintains conversational context across turns.
     Returns (response_text, should_continue).
+
+    Args:
+        command: The text command to process.
+        source: "local" (mic) or "api" (remote client).
     """
     global _claude_history, _ctx
 

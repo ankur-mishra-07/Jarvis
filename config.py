@@ -19,6 +19,10 @@ DEFAULTS = {
     "claude_model": "claude-sonnet-4-20250514",
     "listen_timeout": 5,
     "phrase_time_limit": 10,
+    # Server config
+    "server_host": "0.0.0.0",
+    "server_port": 8786,
+    "server_api_key": "",  # Must be set to enable server mode
 }
 
 

@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "J.A.R.V.I.S.",
+    "slug": "jarvis-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "jarvis",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0a0a1a",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jarvis.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "J.A.R.V.I.S. needs microphone access for voice commands"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0a1a"
+      },
+      "package": "com.jarvis.mobile",
+      "permissions": ["RECORD_AUDIO"]
+    }
+  }
+}

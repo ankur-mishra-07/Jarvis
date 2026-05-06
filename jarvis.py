@@ -985,32 +985,19 @@ class ListenerThread(QThread):
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 
-def main():
-    acquire_lock()
-    atexit.register(release_lock)
+def _parse_mode():
+    """Parse CLI args for run mode."""
+    if "--server" in sys.argv:
+        return "server"
+    elif "--dual" in sys.argv:
+        return "dual"
+    elif "--headless" in sys.argv:
+        return "headless"
+    return "local"
 
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
-    cfg = config.load_config()
-    headless = cfg.get("headless", False)
-
-    speech = SpeechEngine()
-
-    if headless:
-        listener = ListenerThread(speech)
-        listener.start()
-        print("  [Running in headless mode — no GUI]")
-        try:
-            while listener.isRunning():
-                time.sleep(1)
-        except (KeyboardInterrupt, SystemExit):
-            pass
-        listener.stop()
-        listener.wait(3000)
-        release_lock()
-        sys.exit(0)
-
+def _start_local_gui(speech):
+    """Start the local voice assistant with GUI."""
     from PyQt6.QtWidgets import QApplication
     from ui import JarvisWidget
 
@@ -1042,14 +1029,73 @@ def main():
     exit_code = app.exec()
     listener.stop()
     listener.wait(3000)
+    return exit_code
+
+
+def _start_local_headless(speech):
+    """Start the local voice assistant headless (no GUI)."""
+    listener = ListenerThread(speech)
+    listener.start()
+    print("  [Running in headless mode — no GUI]")
+    try:
+        while listener.isRunning():
+            time.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    listener.stop()
+    listener.wait(3000)
+
+
+def main():
+    acquire_lock()
+    atexit.register(release_lock)
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+    mode = _parse_mode()
+    cfg = config.load_config()
+
+    # ── Server-only mode ─────────────────────────────────────────────────
+    if mode == "server":
+        from server.app import start_server
+        print("  [Starting in server-only mode]")
+        start_server()
+        release_lock()
+        sys.exit(0)
+
+    # ── Dual mode: local voice + API server ──────────────────────────────
+    if mode == "dual":
+        from server.app import start_server_background, set_local_listener_active
+        print("  [Starting in dual mode: local voice + API server]")
+        start_server_background()
+        set_local_listener_active(True)
+
+    # ── Local voice assistant (default) ──────────────────────────────────
+    speech = SpeechEngine()
+
+    headless = cfg.get("headless", False) or mode == "headless"
+
+    if headless:
+        _start_local_headless(speech)
+        release_lock()
+        sys.exit(0)
+
+    exit_code = _start_local_gui(speech)
     release_lock()
     sys.exit(exit_code)
 
 
 if __name__ == "__main__":
+    mode = _parse_mode()
     print("=" * 50)
     print("  J.A.R.V.I.S. Personal Assistant")
-    print("  Say 'Jarvis' to activate or click the reactor.")
+    if mode == "server":
+        print("  Mode: API Server")
+    elif mode == "dual":
+        print("  Mode: Local Voice + API Server")
+    else:
+        print("  Say 'Jarvis' to activate or click the reactor.")
     print("  Say 'Goodbye' to exit.")
     print("=" * 50)
     print()
