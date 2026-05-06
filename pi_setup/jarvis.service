@@ -1,0 +1,38 @@
+[Unit]
+Description=J.A.R.V.I.S. Voice Assistant
+After=network-online.target sound.target ollama.service
+Wants=network-online.target sound.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/Jarvis
+ExecStart=/home/pi/Jarvis/venv/bin/python3 /home/pi/Jarvis/jarvis.py
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Headless environment — no display server
+Environment=DISPLAY=
+Environment=QT_QPA_PLATFORM=offscreen
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=HOME=/home/pi
+Environment=PYTHONUNBUFFERED=1
+Environment=LANG=en_US.UTF-8
+
+# Audio access
+SupplementaryGroups=audio gpio i2c
+
+# Resource limits for Pi 5 (8GB)
+MemoryMax=4G
+CPUQuota=80%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=jarvis
+
+[Install]
+WantedBy=multi-user.target

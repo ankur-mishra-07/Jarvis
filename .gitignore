@@ -1,0 +1,33 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+logs/
+*.log
+
+# Data / runtime
+data/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# Environment / secrets
+.env
+config.json

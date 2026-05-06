@@ -1,0 +1,26 @@
+{
+  "owner_name": "Boss",
+  "wake_word": "jarvis",
+  "voice_id": "",
+  "voice_profile": "jarvis",
+  "voice_rate": 180,
+  "voice_volume": 1.0,
+  "whisper_model": "base.en",
+
+  "brain_priority": ["ollama", "groq", "gemini"],
+
+  "groq_api_key": "",
+  "groq_model": "llama-3.3-70b-versatile",
+
+  "gemini_api_key": "",
+  "gemini_model": "gemini-1.5-flash",
+
+  "ollama_url": "http://localhost:11434",
+  "ollama_model": "mistral:7b-instruct-v0.3-q4_K_M",
+
+  "claude_api_key": "",
+  "claude_model": "claude-sonnet-4-5",
+
+  "listen_timeout": 5,
+  "phrase_time_limit": 10
+}

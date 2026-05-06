@@ -1,0 +1,5 @@
+SpeechRecognition>=3.10.0
+PyAudio>=0.2.14
+PyQt6>=6.6.0
+requests>=2.31.0
+anthropic>=0.40.0
