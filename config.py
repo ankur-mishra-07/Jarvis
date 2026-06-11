@@ -23,6 +23,8 @@ DEFAULTS = {
     "server_host": "0.0.0.0",
     "server_port": 8786,
     "server_api_key": "",  # Must be set to enable server mode
+    # Proactive announcements (battery, WiFi, disk, market open/close)
+    "proactive_events": True,
 }
 
 

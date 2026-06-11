@@ -1664,6 +1664,14 @@ COMMAND_TABLE = [
     (["sip calculator", "sip of", "calculate sip", "mutual fund sip"],
         lambda c: _finance("sip_calculator", c)),
 
+    # --- Proactive announcements toggle ---
+    (["disable announcements", "stop announcements", "turn off announcements",
+      "disable alerts", "stop alerting", "quiet mode"],
+        lambda c: _toggle_announcements(False)),
+    (["enable announcements", "start announcements", "turn on announcements",
+      "enable alerts"],
+        lambda c: _toggle_announcements(True)),
+
     # --- Music & Media ---
     (["what song", "what's playing", "what is playing", "currently playing", "now playing"], lambda c: music_what_playing()),
     (["next track", "next song", "skip song", "skip track"], lambda c: music_next()),
@@ -1916,6 +1924,13 @@ def _split_steps(cmd):
     s = s.replace(';', ' ||| ')
     parts = [p.strip(" ,.") for p in s.split('|||') if p.strip(" ,.")]
     return parts
+
+
+def _toggle_announcements(enabled):
+    config.set_key("proactive_events", enabled)
+    if enabled:
+        return "Proactive announcements enabled — I'll speak up when something needs attention."
+    return "Going quiet, sir. I'll only alert you on critical battery."
 
 
 def _finance(func_name, command):

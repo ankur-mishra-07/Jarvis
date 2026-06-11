@@ -1082,6 +1082,14 @@ def main():
     # ── Local voice assistant (default) ──────────────────────────────────
     speech = SpeechEngine()
 
+    # Proactive system events (battery, WiFi, disk, market hours)
+    if cfg.get("proactive_events", True):
+        try:
+            from events import SystemEventMonitor
+            SystemEventMonitor(speech).start()
+        except Exception as e:
+            print(f"  [Event monitor failed to start: {e}]", flush=True)
+
     headless = cfg.get("headless", False) or mode == "headless"
 
     if headless:
