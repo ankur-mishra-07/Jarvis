@@ -8,6 +8,9 @@ Iron-Man style:
   - WiFi connected / disconnected / network switched
   - Disk space critically low
   - Indian market open (9:15) and close (15:30) — speaks a finance briefing
+  - Calendar: "your meeting starts in ten minutes" (macOS Calendar app)
+  - Portfolio: a holding you own moves ±3% intraday
+  - Downloads: a new file finishes landing in ~/Downloads
 
 Behaviour rules:
   - Initial state is primed silently (no announcement storm at startup)
@@ -51,6 +54,14 @@ class SystemEventMonitor(threading.Thread):
         self._market_open_announced_on = None
         self._market_close_announced_on = None
 
+        # Calendar / portfolio / downloads state
+        self._calendar_announced = set()      # (title, day) pairs already announced
+        self._calendar_next_check = 0         # own cadence: every 3 min
+        self._calendar_failures = 0           # disable after repeated errors
+        self._portfolio_alerted = {}          # ticker → (date, direction)
+        self._portfolio_next_check = 0        # own cadence: every 10 min
+        self._downloads_seen = None           # primed filename set (None until primed)
+
     def stop(self):
         self._running = False
 
@@ -62,7 +73,9 @@ class SystemEventMonitor(threading.Thread):
         while self._running:
             time.sleep(POLL_INTERVAL)
             for check in (self._check_battery, self._check_wifi,
-                          self._check_disk, self._check_market):
+                          self._check_disk, self._check_market,
+                          self._check_calendar, self._check_portfolio,
+                          self._check_downloads):
                 try:
                     check()
                 except Exception as e:
@@ -217,3 +230,147 @@ class SystemEventMonitor(threading.Thread):
                 print(f"  [Market announce error: {e}]", flush=True)
         # Network fetch off the monitor thread so a slow API can't stall polling
         threading.Thread(target=_bg, daemon=True).start()
+
+    # ─── Calendar (macOS Calendar app) ───────────────────────────────────
+
+    _CALENDAR_SCRIPT = '''
+    tell application "Calendar"
+        set out to ""
+        set rightNow to current date
+        set cutoff to rightNow + 3600
+        repeat with cal in calendars
+            try
+                repeat with ev in (events of cal whose start date is greater than or equal to rightNow and start date is less than or equal to cutoff)
+                    set mins to round (((start date of ev) - rightNow) / 60)
+                    set out to out & (summary of ev) & "|" & mins & linefeed
+                end repeat
+            end try
+        end repeat
+        return out
+    end tell'''
+
+    def _read_calendar(self):
+        """Returns [(title, minutes_until_start), ...] for the next hour."""
+        # Calendar must be running for AppleScript queries (-g: no focus, -j: hidden).
+        # First query after a cold launch can take 20s+; warm queries are fast.
+        subprocess.run(["open", "-gja", "Calendar"], capture_output=True, timeout=5)
+        out = subprocess.run(["osascript", "-e", self._CALENDAR_SCRIPT],
+                             capture_output=True, text=True, timeout=30)
+        if out.returncode != 0:
+            raise RuntimeError(out.stderr.strip()[:80])
+        events = []
+        for line in out.stdout.strip().splitlines():
+            if "|" in line:
+                title, _, mins = line.rpartition("|")
+                try:
+                    events.append((title.strip(), int(mins)))
+                except ValueError:
+                    continue
+        return events
+
+    def _check_calendar(self):
+        now = time.time()
+        if now < self._calendar_next_check or self._calendar_failures >= 3:
+            return
+        self._calendar_next_check = now + 180   # every 3 minutes
+        if getattr(self, "_calendar_inflight", False):
+            return   # previous fetch still running — Calendar queries can take 20s+
+
+        def _bg():
+            self._calendar_inflight = True
+            try:
+                try:
+                    events = self._read_calendar()
+                    self._calendar_failures = 0
+                except Exception as e:
+                    self._calendar_failures += 1
+                    if self._calendar_failures == 3:
+                        print(f"  [Calendar checks disabled after repeated errors: {e}]"
+                              "\n  [Grant Automation → Calendar in System Settings]",
+                              flush=True)
+                    return
+
+                today = datetime.date.today()
+                for title, mins in events:
+                    key = (title, str(today))
+                    # 3-min poll against a ≤12-min window guarantees one hit per event
+                    if 0 < mins <= 12 and key not in self._calendar_announced:
+                        self._calendar_announced.add(key)
+                        when = "now" if mins <= 2 else f"in {mins} minutes"
+                        self._announce(f"Your meeting '{title}' starts {when}, sir.")
+            finally:
+                self._calendar_inflight = False
+
+        # Slow AppleScript query runs off-thread so battery/WiFi checks never stall
+        threading.Thread(target=_bg, daemon=True).start()
+
+    # ─── Portfolio price alerts ──────────────────────────────────────────
+
+    def _check_portfolio(self):
+        now = time.time()
+        if now < self._portfolio_next_check:
+            return
+        self._portfolio_next_check = now + 600   # every 10 minutes
+
+        # Only during NSE market hours, weekdays
+        dt = datetime.datetime.now()
+        if dt.weekday() >= 5:
+            return
+        if not (datetime.time(9, 15) <= dt.time() <= datetime.time(15, 30)):
+            return
+
+        def _bg():
+            try:
+                from finance.agent import _load_portfolio, _fetch, _pct
+                threshold = config.get("portfolio_alert_pct") or 3
+                today = str(datetime.date.today())
+                for h in _load_portfolio()["holdings"]:
+                    d = _fetch(h["ticker"])
+                    chg = _pct(d["price"], d["prev_close"])
+                    if abs(chg) < threshold:
+                        continue
+                    direction = "up" if chg > 0 else "down"
+                    if self._portfolio_alerted.get(h["ticker"]) == (today, direction):
+                        continue
+                    self._portfolio_alerted[h["ticker"]] = (today, direction)
+                    self._announce(
+                        f"Portfolio alert: {h['name'].title()} is {direction} "
+                        f"{abs(chg):.1f} percent today.")
+            except Exception as e:
+                print(f"  [Portfolio alert error: {e}]", flush=True)
+        threading.Thread(target=_bg, daemon=True).start()
+
+    # ─── Downloads watcher ───────────────────────────────────────────────
+
+    _DOWNLOADS_DIR = None   # resolved lazily so tests can override
+    _PARTIAL_EXTS = (".crdownload", ".download", ".part", ".tmp")
+
+    def _scan_downloads(self):
+        import os
+        d = self._DOWNLOADS_DIR or os.path.expanduser("~/Downloads")
+        try:
+            return {f for f in os.listdir(d)
+                    if not f.startswith(".")
+                    and not f.lower().endswith(self._PARTIAL_EXTS)}
+        except OSError:
+            return set()
+
+    def _check_downloads(self):
+        import os
+        current = self._scan_downloads()
+        if self._downloads_seen is None:      # first poll: prime silently
+            self._downloads_seen = current
+            return
+        new_files = current - self._downloads_seen
+        self._downloads_seen = current
+        d = self._DOWNLOADS_DIR or os.path.expanduser("~/Downloads")
+        for f in sorted(new_files):
+            try:
+                size = os.path.getsize(os.path.join(d, f))
+            except OSError:
+                continue
+            if size < 1_000_000:              # ignore tiny files / metadata
+                continue
+            mb = size / 1e6
+            size_str = f"{mb/1000:.1f} gigabytes" if mb >= 1000 else f"{mb:.0f} megabytes"
+            self._announce(f"Download finished: {f}, {size_str}.")

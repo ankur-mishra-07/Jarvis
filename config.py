@@ -25,6 +25,8 @@ DEFAULTS = {
     "server_api_key": "",  # Must be set to enable server mode
     # Proactive announcements (battery, WiFi, disk, market open/close)
     "proactive_events": True,
+    # Announce when a holding moves more than this % intraday
+    "portfolio_alert_pct": 3,
 }
 
 
