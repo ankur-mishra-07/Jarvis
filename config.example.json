@@ -5,7 +5,7 @@
   "voice_profile": "jarvis",
   "voice_rate": 180,
   "voice_volume": 1.0,
-  "whisper_model": "base.en",
+  "whisper_model": "small.en",
 
   "brain_priority": ["ollama", "groq", "gemini"],
 

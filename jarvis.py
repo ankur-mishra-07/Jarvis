@@ -589,6 +589,14 @@ class ListenerThread(QThread):
                 compression_ratio_threshold=1.8,     # Reject repetitive/looping output
                 condition_on_previous_text=False,     # Each phrase independent
                 temperature=0.0,                     # Greedy decoding — most accurate
+                # Vocabulary hint — biases decoding toward command words and
+                # Indian English pronunciation patterns (huge accuracy boost)
+                initial_prompt=(
+                    "Jarvis voice commands in Indian English: open YouTube, "
+                    "search for, play video, set timer, what time is it, "
+                    "stock price, market summary, portfolio, close the player, "
+                    "scroll down, go back, full screen, take a note, weather."
+                ),
             )
             text = result["text"].strip().lower()
 

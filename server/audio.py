@@ -204,6 +204,12 @@ class STTEngine:
                 compression_ratio_threshold=1.8,
                 condition_on_previous_text=False,
                 temperature=0.0,
+                initial_prompt=(
+                    "Jarvis voice commands in Indian English: open YouTube, "
+                    "search for, play video, set timer, what time is it, "
+                    "stock price, market summary, portfolio, close the player, "
+                    "scroll down, go back, full screen, take a note, weather."
+                ),
             )
             text = result["text"].strip().lower()
             os.unlink(tmp_path)

@@ -17,6 +17,9 @@ openai-whisper>=20231117
 # Web search
 duckduckgo_search>=6.0.0
 
+# Finance mode (Indian stocks)
+yfinance>=0.2.40
+
 # Vector memory
 faiss-cpu>=1.7.0
 sentence-transformers>=2.2.0

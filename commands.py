@@ -1640,6 +1640,30 @@ COMMAND_TABLE = [
     # --- News ---
     (["news", "headlines", "what's happening in the world"], lambda c: get_news()),
 
+    # --- Finance Mode (Indian stocks) ---
+    # Specific triggers FIRST (analysis before quote, portfolio actions before view)
+    (["analyse ", "analyze ", "analysis of", "should i buy", "should i sell",
+      "technical analysis"], lambda c: _finance("analyze_stock", c)),
+    (["add ", "buy "], lambda c: _finance("portfolio_add", c)
+        if re.search(r'\b(portfolio|holdings?)\b', c.lower()) else None),
+    (["remove ", "delete ", "sell "], lambda c: _finance("portfolio_remove", c)
+        if re.search(r'\b(portfolio|holdings?)\b', c.lower()) else None),
+    (["portfolio value", "portfolio worth", "my portfolio worth",
+      "value of my portfolio", "how is my portfolio", "how's my portfolio",
+      "portfolio performance"], lambda c: _finance("portfolio_value", c)),
+    (["my portfolio", "show portfolio", "my holdings", "my stocks",
+      "my investments"], lambda c: _finance("portfolio_view", c)),
+    (["market summary", "how is the market", "how's the market",
+      "market today", "nifty", "sensex", "bank nifty"], lambda c: _finance("market_summary", c)),
+    (["top gainers", "top losers", "market movers", "biggest gainers",
+      "biggest losers"], lambda c: _finance("top_movers", c)),
+    (["stock price", "share price", "price of", "stock quote",
+      "how is the stock", "what's the stock"], lambda c: _finance("stock_quote", c)),
+    (["finance briefing", "financial briefing", "finance mode",
+      "money briefing", "market briefing"], lambda c: _finance("daily_briefing", c)),
+    (["sip calculator", "sip of", "calculate sip", "mutual fund sip"],
+        lambda c: _finance("sip_calculator", c)),
+
     # --- Music & Media ---
     (["what song", "what's playing", "what is playing", "currently playing", "now playing"], lambda c: music_what_playing()),
     (["next track", "next song", "skip song", "skip track"], lambda c: music_next()),
@@ -1892,6 +1916,19 @@ def _split_steps(cmd):
     s = s.replace(';', ' ||| ')
     parts = [p.strip(" ,.") for p in s.split('|||') if p.strip(" ,.")]
     return parts
+
+
+def _finance(func_name, command):
+    """Lazy dispatcher for finance agent — keeps yfinance import off the startup path."""
+    try:
+        import finance
+        handler = getattr(finance, func_name)
+        return handler(command)
+    except ImportError:
+        return "Finance mode needs the yfinance package. Run: pip3 install yfinance."
+    except Exception as e:
+        print(f"  [Finance error: {e}]", flush=True)
+        return "The finance module hit an error — market data may be unavailable."
 
 
 def _run_single(command):
