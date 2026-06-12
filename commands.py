@@ -1697,6 +1697,12 @@ COMMAND_TABLE = [
     (["read screen", "read the screen", "what's on screen", "what's on the screen",
       "what do you see", "what can you see", "what is on my screen",
       "describe screen", "describe the screen"], lambda c: read_screen(c)),
+    # --- Autonomous screen agent (multi-step: see → decide → click → repeat) ---
+    (["find and ", "browse and ", "search and click", "search and play",
+      "find me and play", "look for and", "agent mode", "do it yourself",
+      "figure out and", "navigate the screen"],
+        lambda c: _screen_agent(c)),
+
     (["walk through", "walk me through", "run through", "run me through",
       "go through", "go over"], lambda c: walk_through(c)),
     (["click ", "tap ", "press the ", "select the ", "hit the "], lambda c: click_text_on_screen(c)),
@@ -1924,6 +1930,24 @@ def _split_steps(cmd):
     s = s.replace(';', ' ||| ')
     parts = [p.strip(" ,.") for p in s.split('|||') if p.strip(" ,.")]
     return parts
+
+
+def _screen_agent(command):
+    """Run the autonomous screen agent for a multi-step browser goal."""
+    goal = command.lower()
+    # Strip the trigger phrasing — the agent wants the bare goal
+    for prefix in ("agent mode", "do it yourself", "navigate the screen and",
+                   "navigate the screen"):
+        goal = goal.replace(prefix, " ")
+    goal = re.sub(r'\s+', ' ', goal).strip(" .,")
+    if not goal:
+        return "What should I do on screen, sir?"
+    try:
+        from screen_agent import run_goal
+        return run_goal(goal)
+    except Exception as e:
+        print(f"  [Screen agent error: {e}]", flush=True)
+        return "The screen agent hit an error, sir."
 
 
 def _toggle_announcements(enabled):
