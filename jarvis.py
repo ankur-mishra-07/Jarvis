@@ -412,6 +412,7 @@ class ListenerThread(QThread):
         self._mic = None
         self._last_recalibrate = 0
         self._last_activity = time.time()
+        self._google_failures = 0   # consecutive Google STT failures → Whisper fallback
 
         # Load Whisper model for local speech recognition (much better with accents)
         self._whisper_model = None
@@ -712,12 +713,26 @@ class ListenerThread(QThread):
             if self._is_mostly_silence(audio):
                 return None
 
-            # Stage 1: Fast wake word check using Google STT
-            # Google is instant and free — use it just to detect "jarvis"
+            # Stage 1: wake word check. Try Google first (instant when it works),
+            # but fall back to LOCAL WHISPER when Google is offline or rate-limited.
+            # Google's free endpoint throttles after sustained use — without this
+            # fallback Jarvis would go permanently deaf (stuck in standby).
+            quick_text = ""
             try:
                 quick_text = self._recognizer.recognize_google(audio).lower().strip()
-            except (sr.UnknownValueError, sr.RequestError):
-                quick_text = ""
+            except sr.UnknownValueError:
+                quick_text = ""   # Google heard noise, not speech — skip Whisper
+            except sr.RequestError as e:
+                # Google unavailable/throttled — fall back to offline Whisper
+                self._google_failures += 1
+                if self._google_failures in (1, 10, 50):
+                    print(f"  [Google STT unavailable ({e}) — using local Whisper "
+                          f"for wake word]", flush=True)
+                if self._whisper_model:
+                    whisper_text = self._recognize_whisper(audio)
+                    quick_text = (whisper_text or "").lower().strip()
+            else:
+                self._google_failures = 0   # Google recovered
 
             if not quick_text:
                 return None
@@ -791,9 +806,9 @@ class ListenerThread(QThread):
         now = time.time()
         if now - self._last_recalibrate > 120:
             self._recognizer.adjust_for_ambient_noise(source, duration=1.0)
-            # Enforce floor after recalibration too
-            if self._recognizer.energy_threshold < 200:
-                self._recognizer.energy_threshold = 400
+            # Same ambient-relative tuning as initial calibration (not a hard 400)
+            ambient = self._recognizer.energy_threshold
+            self._recognizer.energy_threshold = max(150, min(int(ambient * 2.5), 400))
             self._last_recalibrate = now
             print(f"  [Recalibrated: energy_threshold={self._recognizer.energy_threshold:.0f}]", flush=True)
 
@@ -844,11 +859,15 @@ class ListenerThread(QThread):
             self._recognizer.adjust_for_ambient_noise(source, duration=2.0)
             self._last_recalibrate = time.time()
 
-        # Guard against degenerate calibration
-        if self._recognizer.energy_threshold < 200:
-            print(f"  [⚠ Low energy threshold ({self._recognizer.energy_threshold:.0f}) — "
-                  f"forcing floor to 400]", flush=True)
-            self._recognizer.energy_threshold = 400
+        # Set a sane threshold relative to ambient. A hard floor of 400 made
+        # quiet/low-gain mics require near-shouting (a common "not responding"
+        # cause). Scale to ambient instead: ~2.5x ambient so normal speech
+        # crosses it, clamped to a usable [150, 400] range.
+        ambient = self._recognizer.energy_threshold
+        tuned = max(150, min(int(ambient * 2.5), 400))
+        if tuned != ambient:
+            self._recognizer.energy_threshold = tuned
+            print(f"  [Ambient {ambient:.0f} → speech threshold {tuned}]", flush=True)
 
         print(f"  [Mic calibrated. energy_threshold={self._recognizer.energy_threshold:.0f}]", flush=True)
         print(f"  [Always listening. Wake word: '{WAKE_WORD}']\n", flush=True)
