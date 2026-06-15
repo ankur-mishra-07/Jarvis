@@ -1023,6 +1023,53 @@ def _parse_mode():
     return "local"
 
 
+def _ensure_ollama():
+    """
+    If Ollama is the brain backend and it isn't reachable, start it.
+    Without this, a stopped Ollama makes Jarvis reply 'My thinking engines
+    seem to be offline' to every question. Self-heals on startup.
+    """
+    if IS_LINUX:
+        return  # Pi/Linux manages ollama via systemd
+    priority = config.get("brain_priority") or []
+    if "ollama" not in priority:
+        return
+
+    import requests
+    url = (config.get("ollama_url") or "http://localhost:11434") + "/api/tags"
+    try:
+        if requests.get(url, timeout=2).status_code == 200:
+            return  # already up
+    except Exception:
+        pass
+
+    print("  [Ollama not running — starting it...]", flush=True)
+    try:
+        # Prefer brew services (persists across reboots); fall back to bare serve
+        if subprocess.run(["brew", "services", "start", "ollama"],
+                          capture_output=True, timeout=15).returncode != 0:
+            subprocess.Popen(["ollama", "serve"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        try:
+            subprocess.Popen(["ollama", "serve"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            print("  [Ollama not installed — brain will be unavailable]", flush=True)
+            return
+
+    # Metal GPU init takes ~12s on first boot — poll until ready
+    for _ in range(10):
+        time.sleep(2)
+        try:
+            if requests.get(url, timeout=2).status_code == 200:
+                print("  [Ollama ready]", flush=True)
+                return
+        except Exception:
+            continue
+    print("  [Ollama slow to start — brain may be offline briefly]", flush=True)
+
+
 def _start_local_gui(speech):
     """Start the local voice assistant with GUI."""
     from PyQt6.QtWidgets import QApplication
@@ -1082,6 +1129,9 @@ def main():
 
     mode = _parse_mode()
     cfg = config.load_config()
+
+    # Make sure the brain backend is up before anything asks it a question
+    _ensure_ollama()
 
     # ── Server-only mode ─────────────────────────────────────────────────
     if mode == "server":
