@@ -62,6 +62,22 @@ def main():
 
     print(f"  ✓ Key works (Groq replied: '{msg}')")
 
+    # The brain backend imports the `groq` package — ensure it's installed,
+    # otherwise the key saves but Groq fallback silently can't load.
+    try:
+        import groq  # noqa: F401
+    except ImportError:
+        print("  Installing the groq package...", flush=True)
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "groq"],
+                       check=False)
+        try:
+            import groq  # noqa: F401
+            print("  ✓ groq package installed")
+        except ImportError:
+            print("  ⚠  Could not install the groq package automatically.\n"
+                  "     Run: pip3 install groq")
+
     # Save to config.json (gitignored — never committed)
     cfg = config.load_config()
     cfg["groq_api_key"] = key
